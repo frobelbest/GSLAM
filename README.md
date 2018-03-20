@@ -39,7 +39,7 @@ GSLAM [sequence_path] [vocabulary_path], for example  GSLAM ./bear ./Vocabulary/
 ### Notes
 
 #### Real-time KLT with AVX Acceleration
-Except the method proposed in the paper, this project also featured in a highly optimized KLT Tracker which can track more than 4000 points on a 1080p video in real-time.
+Except the method proposed in the paper, this project also featured in a highly optimized KLT Tracker that can track more than 4000 points on a 1080p video in real-time.
 
 #### ToDo
 The main bottleneck for this project is the feature tracking, which can be further improved by the paper "Better feature tracking through subspace constraints".
