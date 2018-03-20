@@ -7,7 +7,7 @@ For more information see
 * **GSLAM: Initialization-robust Monocular Visual SLAM via Global Structure-from-Motion**, *C. Tang, O. Wang, P. Tan*, In 3DV,2017
 * **Global Structure-from-Motion by Similarity Averaging**, *Z. Cui, P. Tan*, In ICCV, 2015
 
-<!-- Get some datasets from [https://vision.in.tum.de/mono-dataset](https://vision.in.tum.de/mono-dataset) . -->
+Get some datasets from [https://vision.in.tum.de/mono-dataset](https://vision.in.tum.de/mono-dataset) .
 
 ### 2. Installation
 
@@ -16,27 +16,24 @@ For more information see
 #### 2.1 Required Dependencies
 
 ##### Theia Vision Library (required for global rotation averaging).
-Install from [https://github.com/stevenlovegrove/Pangolin](https://github.com/stevenlovegrove/Pangolin)
+Install from [http://www.theia-sfm.org](http://www.theia-sfm.org)
 ##### Ceres Solver (required for local and global bundle adjustment).
-Install from [https://github.com/stevenlovegrove/Pangolin](https://github.com/stevenlovegrove/Pangolin)
+Install from [http://ceres-solver.org](http://ceres-solver.org)
 ##### CLP (required for global scale and translation averaging).
-Install from [https://github.com/stevenlovegrove/Pangolin](https://github.com/stevenlovegrove/Pangolin)
+Install from [https://projects.coin-or.org/Clp](https://projects.coin-or.org/Clp)
 ##### OpenCV (required for image processing).
-Install from [https://github.com/stevenlovegrove/Pangolin](https://github.com/stevenlovegrove/Pangolin)
+Install from [https://opencv.org](https://opencv.org)
 ##### Pangolin (required for visualization).
 Install from [https://github.com/stevenlovegrove/Pangolin](https://github.com/stevenlovegrove/Pangolin)
-
 
 #### 2.3 Build
 Currently, only the xcode project is supplied. You can write your own code to compile on other platforms or wait for future update.
 
 ### 3 Usage
 Run on a dataset from [https://vision.in.tum.de/mono-dataset](https://vision.in.tum.de/mono-dataset) using
-GSLAM [sequence_path] [vocabulary_path], for example  GSLAM [./bear] [./Vocabulary/ORBvoc.txt]
+GSLAM [sequence_path] [vocabulary_path], for example  GSLAM ./bear ./Vocabulary/ORBvoc.txt
 
 #### 3.1 Dataset Format.
-The format assumed is that of [https://vision.in.tum.de/mono-dataset](https://vision.in.tum.de/mono-dataset).
-However, it should be easy to adapt it to your needs, if required. The binary is run with:
 
 
 ### Notes
