@@ -611,12 +611,9 @@ namespace GSLAM {
                 rotationConstraints[i].variableIndex1=rotationIndex[rotationConstraints[i].keyFrameIndex1];
                 rotationConstraints[i].variableIndex2=rotationIndex[rotationConstraints[i].keyFrameIndex2];
             }
-            //globalRotationEstimation.maxOuterIterations=1000;
-            //globalRotationEstimation.maxInnerIterations=20;
-            //globalRotationEstimation.solve(rotationConstraints,newRotations);
         }
         
-        /*std::unordered_map<theia::ViewIdPair,theia::TwoViewInfo> view_pairs;
+        std::unordered_map<theia::ViewIdPair,theia::TwoViewInfo> view_pairs;
         std::unordered_map<theia::ViewId,Eigen::Vector3d> orientations;
         
         theia::RobustRotationEstimator::Options options;
@@ -631,39 +628,13 @@ namespace GSLAM {
             Eigen::Vector3d angle;
             ceres::RotationMatrixToAngleAxis(rotationConstraints[i].rotation12.data(),angle.data());
             view_pairs[viewPair].rotation_2=angle;
-        }*/
-        
-        GlobalRotationAveraging rotationAveraging;
-        rotationAveraging.initialize();
-        rotationAveraging.estimateGlobalRotation(rotationConstraints,newRotations,
-                                                 keyFrames.size());
-        rotationAveraging.release();
-        /*for (int i=1;i<newRotations.size();i++) {
-            newRotations[i]=newRotations[i]*newRotations[0].transpose();
         }
-        newRotations[0]=Eigen::Matrix3d::Identity();
-        
-        newRotations.resize(keyFrames.size());
-        newRotations[0]=Eigen::Matrix3d::Identity();
-        for (int i=1;i<keyFrames.size();i++) {
-            newRotations[i]=keyFrames[i-1]->mvLocalFrames.back().pose.rotation*newRotations[i-1];
-        }
-        
-        for (int i=0;i<keyFrames.size();i++) {
-            Eigen::Vector3d angle;
-            ceres::RotationMatrixToAngleAxis(newRotations[i].data(),angle.data());
-            orientations[i]=angle;
-        }
+
         rotation_estimator.EstimateRotations(view_pairs,&orientations);
         for (int i=0;i<newRotations.size();i++) {
             ceres::AngleAxisToRotationMatrix(orientations[i].data(),newRotations[i].data());
-        }*/
-        
-        
-        for (int i=1;i<newRotations.size();i++) {
-            newRotations[i]=newRotations[i]*newRotations[0].transpose();
         }
-        newRotations[0]=Eigen::Matrix3d::Identity();
+        
         for (int k=0;k<keyFrames.size();k++) {
             keyFrames[k]->pose.rotation=newRotations[rotationIndex[k]];
         }
