@@ -221,7 +221,10 @@ namespace GSLAM{
         void getTranslationConstraint(KeyFrame* keyFrame1,std::vector<TranslationConstraint>& translationConstraints);
         void getSIM3Constraint(KeyFrame* keyFrame1,std::vector<SIM3Constraint>& constraints);
         
+        
     public:
+        void saveTUM(const char* savename,const std::vector<double>& timestamps);
+        void globalRefine();
         char *path;
         int frameStart;
         GlobalReconstruction(){

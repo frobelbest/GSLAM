@@ -21,8 +21,8 @@
 #define KEYFRAME_H
 
 
-#include "DBoW2/DBoW2/BowVector.h"
-#include "DBoW2/DBoW2/FeatureVector.h"
+#include "./DBoW2/BowVector.h"
+#include "./DBoW2/FeatureVector.h"
 #include "ORBVocabulary.h"
 #include "Frame.h"
 #include "KLT.h"

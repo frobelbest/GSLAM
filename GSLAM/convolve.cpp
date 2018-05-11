@@ -9,7 +9,6 @@
 #include "convolve.h"
 #include "KLTUtil.h"
 #include <avxintrin.h>
-#include "tbb/tbb_thread.h"
 #include <iostream>
 #include "opencv2/imgproc/imgproc.hpp"
 

@@ -16,12 +16,6 @@
 #include <tbb/tbb.h>
 
 
-
-
-
-
-
-
 namespace GSLAM{
     
     System::System(const string &strVocFile, const string &strSettingsFile){
@@ -164,6 +158,9 @@ namespace GSLAM{
         
         lightFramePre=NULL;
         lightFrameCur=NULL;
+        
+        frameStart=fsSettings["SLAM.startFrame"];
+        frameEnd=fsSettings["SLAM.endFrame"];
     }
     
     void processKeyFrame(System& system,KeyFrame& keyFrame){
@@ -368,9 +365,9 @@ namespace GSLAM{
             
             //create klt frame
             pyramidBuffers.initialize();
-            computePyramid3(trackingContext,im,*pyramidBuffers.ptrs[1]);
+            computePyramid(trackingContext,im,*pyramidBuffers.ptrs[1]);
             
-            pyramidBuffers.preloadThread=std::thread(computePyramid3,
+            pyramidBuffers.preloadThread=std::thread(computePyramid,
                                                      std::ref(trackingContext),
                                                      std::ref(*preloadImage),
                                                      std::ref(*pyramidBuffers.ptrs[2]));
@@ -508,7 +505,7 @@ namespace GSLAM{
             //computePyramid3(trackingContext,im,*pyramid2Ptr);
             //computePyramid3(trackingContext,im,*pyramid2Ptr);
             
-            pyramidBuffers.preloadThread=std::thread(computePyramid3,
+            pyramidBuffers.preloadThread=std::thread(computePyramid,
                                                      std::ref(trackingContext),
                                                      std::ref(*preloadImage),
                                                      std::ref(*pyramidBuffers.ptrs[2]));
@@ -663,8 +660,8 @@ namespace GSLAM{
                     keyFrameConnector.connectKeyFrame(preKeyFrame,keyFrame);
                 }*/
                 keyFrame->prevKeyFramePtr=preKeyFrame;
-                //keyFrame->baThread=std::thread(processKeyFrame,std::ref(*this),std::ref(*keyFrame));
-                processKeyFrame(*this,*keyFrame);
+                keyFrame->baThread=std::thread(processKeyFrame,std::ref(*this),std::ref(*keyFrame));
+                //processKeyFrame(*this,*keyFrame);
                 
                 
                 //mpKeyFrameDatabase->add(keyFrame);
@@ -736,6 +733,7 @@ namespace GSLAM{
     }
     
     void System::finish(){
+        globalReconstruction.path=path;
         pyramidBuffers.preloadThread.join();
         if(frontKeyFrame->mvLocalFrames.size()>0){
             
@@ -773,15 +771,17 @@ namespace GSLAM{
         //globalReconstruction.savePly();
         
         
-        /*
+        
         globalReconstruction.scaleThreshold=20;
         globalReconstruction.estimateScale();
         std::vector<int> index;
         globalReconstruction.estimateRotation(index);
         printf("rotation estiamted\n");
-        globalReconstruction.estimateTranslation(index);*/
+        globalReconstruction.estimateTranslation(index);
+        globalReconstruction.globalRefine();
+        globalReconstruction.savePly();
         
-        globalReconstruction.path=path;
+        
         //globalReconstruction.frameStart=frameStart;
         globalReconstruction.visualize();
         //globalReconstruction.topview();

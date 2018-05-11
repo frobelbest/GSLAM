@@ -71,6 +71,7 @@ namespace GSLAM{
         cv::Mat *colorImage;
         char* path;
         int frameStart;
+        int frameEnd;
         
         
         KeyFrame* frontKeyFrame;

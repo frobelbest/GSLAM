@@ -9,9 +9,9 @@
 #ifndef L1Solver_h
 #define L1Solver_h
 
-#include "coin/ClpSimplex.hpp"
-#include "coin/ClpPresolve.hpp"
-#include "coin/ClpPrimalColumnSteepest.hpp"
-#include "coin/ClpDualRowSteepest.hpp"
+#include "./coin/ClpSimplex.hpp"
+#include "./coin/ClpPresolve.hpp"
+#include "./coin/ClpPrimalColumnSteepest.hpp"
+#include "./coin/ClpDualRowSteepest.hpp"
 
 #endif /* L1Solver_h */

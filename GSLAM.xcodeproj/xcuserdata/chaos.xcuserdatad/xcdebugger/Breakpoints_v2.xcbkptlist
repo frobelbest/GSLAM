@@ -10,13 +10,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "GSLAM/ORBmatcher.cc"
-            timestampString = "508663984.964316"
+            timestampString = "546560407.657434"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "122"
             endingLineNumber = "122"
             landmarkName = "ORBmatcher::SearchByRotation(Frame* frame1,Frame* frame2, const cv::Mat&amp; rotation, std::vector&lt;cv::Point2f&gt;&amp; pts1, std::vector&lt;cv::Point2f&gt;&amp; pts2, int ORBdist)"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -26,13 +26,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "GSLAM/ORBmatcher.cc"
-            timestampString = "508663984.964316"
+            timestampString = "546560407.6574889"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "118"
             endingLineNumber = "118"
             landmarkName = "ORBmatcher::SearchByRotation(Frame* frame1,Frame* frame2, const cv::Mat&amp; rotation, std::vector&lt;cv::Point2f&gt;&amp; pts1, std::vector&lt;cv::Point2f&gt;&amp; pts2, int ORBdist)"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -48,7 +48,7 @@
             startingLineNumber = "47"
             endingLineNumber = "47"
             landmarkName = "compensatePatchLighting(float* patch, const int width,const int height, const int alignedPatchSize,const float beta)"
-            landmarkType = "7">
+            landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -64,7 +64,7 @@
             startingLineNumber = "85"
             endingLineNumber = "85"
             landmarkName = "multiviewTriangulationDepth(const std::vector&lt;Eigen::Vector3d&gt; &amp;points, const std::vector&lt;Eigen::Matrix3d&gt; &amp;rotations, const std::vector&lt;Eigen::Vector3d&gt; &amp;cameras)"
-            landmarkType = "7">
+            landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -78,7 +78,9 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "55"
-            endingLineNumber = "55">
+            endingLineNumber = "55"
+            landmarkName = "unknown"
+            landmarkType = "0">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -104,13 +106,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "GSLAM/System.cpp"
-            timestampString = "511245878.635581"
+            timestampString = "546594803.1040241"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "237"
-            endingLineNumber = "237"
+            startingLineNumber = "234"
+            endingLineNumber = "234"
             landmarkName = "NormalizeFrameInvoker(KeyFrame* _keyFrame, ImageGrids* _grids, KLT_FeatureList* _featureList, std::vector&lt;cv::Mat&gt;* _rotations, cv::Mat* _cvInvK)"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -120,13 +122,13 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "GSLAM/System.cpp"
-            timestampString = "511245878.635581"
+            timestampString = "546594803.104081"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "447"
-            endingLineNumber = "447"
+            startingLineNumber = "444"
+            endingLineNumber = "444"
             landmarkName = "System::Track(cv::Mat &amp;im, const double &amp;timestamp,const int outIndex)"
-            landmarkType = "5">
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

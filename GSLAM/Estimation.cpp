@@ -13,6 +13,7 @@
 #include <iostream>
 #include "Geometry.h"
 #include "RelativeMotion.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
 
 
 bool getPVector(const Eigen::Vector3d &T12,

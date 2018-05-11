@@ -9,7 +9,7 @@
 #ifndef TRANSFORM_H
 #define TRANSFORM_H
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 
 namespace GSLAM{
     

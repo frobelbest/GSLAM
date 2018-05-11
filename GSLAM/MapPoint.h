@@ -8,7 +8,7 @@
 #ifndef MAPPOINT_H
 #define MAPPOINT_H
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include "opencv2/core/core.hpp"
 
 #include <vector>

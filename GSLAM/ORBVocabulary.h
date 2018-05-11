@@ -21,8 +21,8 @@
 #define ORBVOCABULARY_H
 
 
-#include "DBoW2/DBoW2/FORB.h"
-#include "DBoW2/DBoW2/TemplatedVocabulary.h"
+#include "./DBoW2/FORB.h"
+#include "./DBoW2/TemplatedVocabulary.h"
 
 namespace GSLAM{
     typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;

@@ -270,11 +270,6 @@ namespace GSLAM{
             }
         }
         
-        char * dotpos=strchr(savename,'.');
-        dotpos[1]='t';
-        dotpos[2]='x';
-        dotpos[3]='t';
-        
         std::ofstream of1(savename);
         if (!mvLocalFrames.empty()) {
             for(int f=0;f<mvLocalFrames.size();f++){

@@ -20,7 +20,8 @@ int main(int argc, char **argv){
     printf("version no global ptr\n");
     system("exec rm -r /Users/chaos/Desktop/debug/*");
     
-    //argv[1]="/Users/chaos/Desktop/data/repeat5";
+    argv[1]="/Users/chaos/Downloads/sequences/robot";
+    argv[2]="/Users/chaos/Downloads/sequences/ORBvoc.txt";
     std::cout<<"process "<<argv[1]<<std::endl;
     
     char name[200];
@@ -95,7 +96,6 @@ int main(int argc, char **argv){
         
         double timestamp;
         timestamps>>timestamp;
-        slamSystem.frameStart=0;
         
         if(frameCount==slamSystem.frameStart){
             
@@ -111,11 +111,15 @@ int main(int argc, char **argv){
             double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
             record<<ttrack<<std::endl;
         }
-
+        
         CVPixelBufferUnlockBaseAddress(pixelBuffer,0);
         CFRelease(sampleBuffer);
         sampleBuffer = NULL;
         frameCount++;
+        
+        if(frameCount>slamSystem.frameEnd){
+            break;
+        }
     }
 
     record.close();

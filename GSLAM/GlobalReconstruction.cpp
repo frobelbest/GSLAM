@@ -9,339 +9,25 @@
 //#include "opencv2/viz.hpp"
 #include "GlobalReconstruction.h"
 #include "KeyFrame.h"
-#include "engine.h"
 #include "Drawer.h"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "ceres/ceres.h"
 
 #include "theia/sfm/global_pose_estimation/robust_rotation_estimator.h"
 #include "theia/sfm/twoview_info.h"
 #include "theia/sfm/types.h"
+#include <vector>
 
-
-#include "g2o/types/sim3/types_seven_dof_expmap.h"
-#include "g2o/core/block_solver.h"
-#include "g2o/core/optimization_algorithm_levenberg.h"
-#include "g2o/solvers/cholmod/linear_solver_cholmod.h"
-#include "g2o/types/sba/types_six_dof_expmap.h"
-#include "g2o/core/robust_kernel_impl.h"
-#include "g2o/solvers/dense/linear_solver_dense.h"
-#include "g2o/types/sim3/types_seven_dof_expmap.h"
-#include <g2o/solvers/csparse/linear_solver_csparse.h>
-
-//#include "common.h"
+const bool disable_loop=true;
 
 namespace GSLAM {
     
-    class sim3PoseGraph{
-        
-    public:
-        
-        void optimizeSim3PoseGraph(const std::vector<SIM3Constraint> &constraints){
-            
-            g2o::SparseOptimizer optimizer;
-            optimizer.setVerbose(false);
-            g2o::BlockSolver_7_3::LinearSolverType * linearSolver =
-            new g2o::LinearSolverCholmod<g2o::BlockSolver_7_3::PoseMatrixType>();
-            g2o::BlockSolver_7_3 * solver_ptr= new g2o::BlockSolver_7_3(linearSolver);
-            g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-        
-            solver->setUserLambdaInit(1e-16);
-            optimizer.setAlgorithm(solver);
-            
-            vector<g2o::Sim3,Eigen::aligned_allocator<g2o::Sim3> > vScw(vpKFs.size());
-            vector<g2o::VertexSim3Expmap*> vpVertices(vpKFs.size());
 
-            for(size_t i=0, iend=vpKFs.size(); i<iend;i++){
-                
-                KeyFrame* pKF = vpKFs[i];
-                g2o::VertexSim3Expmap* VSim3 = new g2o::VertexSim3Expmap();
-                
-                const int nIDi = pKF->mnId;
-                assert(nIDi==pKF->mnId);
-                
-                
-                Eigen::Matrix<double,3,3> Rcw   = pKF->pose.rotation;
-                Eigen::Matrix<double,3,1> tcw   = -pKF->pose.rotation*pKF->pose.translation;
-                double                    scale = pKF->scale;
-                
-                g2o::Sim3 Siw(Rcw,tcw,scale);
-                
-                vScw[nIDi] = Siw;
-                VSim3->setEstimate(Siw);
-                
-                VSim3->setId(nIDi);
-                VSim3->setMarginalized(false);
-                
-                if (i==0) {
-                    VSim3->setFixed(true);
-                }
-                
-                optimizer.addVertex(VSim3);
-                vpVertices[nIDi]=VSim3;
-            }
-            
-            const Eigen::Matrix<double,7,7> matLambda = Eigen::Matrix<double,7,7>::Identity();
-
-            for (int i=0;i<constraints.size();i++) {
-                
-                g2o::EdgeSim3* e = new g2o::EdgeSim3();
-                
-                e->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(constraints[i].variableIndex2)));
-                e->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(constraints[i].variableIndex1)));
-                
-                Eigen::Matrix<double,3,3> Rcw   =   constraints[i].rotation12;
-                Eigen::Matrix<double,3,1> tcw   =  -constraints[i].rotation12*constraints[i].translation12;
-                double                    scale =   1.0/constraints[i].scale12;
-                
-                
-                //printf("%x %d %d\n",e,constraints[i].keyFrameIndex1,constraints[i].keyFrameIndex2);
-                //cout<<Rcw<<endl;
-                //cout<<tcw.transpose()<<endl;
-                //cout<<constraints[i].scale12<<endl;
-                
-                g2o::Sim3 Siw(Rcw,tcw,scale);
-                
-                g2o::RobustKernelHuber* kernel=new g2o::RobustKernelHuber;
-                kernel->setDelta(1.0);
-                
-                e->setRobustKernel(kernel);
-                e->setMeasurement(Siw);
-                e->information() = matLambda;
-                optimizer.addEdge(e);
-            }
-            
-            optimizer.initializeOptimization();
-            optimizer.optimize(20);
-            
-            for(size_t i=0;i<vpKFs.size();i++){
-                
-                KeyFrame* pKFi = vpKFs[i];
-                const int nIDi = pKFi->mnId;
-                g2o::VertexSim3Expmap* VSim3 = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(nIDi));
-                g2o::Sim3 CorrectedSiw =  VSim3->estimate();
-                Eigen::Matrix3d eigR = CorrectedSiw.rotation().toRotationMatrix();
-                Eigen::Vector3d eigt = CorrectedSiw.translation();
-                
-                eigt=-eigR.transpose()*eigt;
-                //std::cout<<eigt.transpose()<<endl;
-                
-                vpKFs[i]->pose.rotation=eigR;
-                vpKFs[i]->pose.translation=eigt;
-                vpKFs[i]->scale=CorrectedSiw.scale();
-            }
-        }
-        std::vector<KeyFrame*> vpKFs;
-    };
-    
-    class sim3PoseGraphEM{
-    public:
-        void optimizeSim3PoseGraph(std::vector<SIM3Constraint> &constraints){
-            
-            g2o::SparseOptimizer optimizer;
-            optimizer.setVerbose(false);
-            g2o::BlockSolver_7_3::LinearSolverType * linearSolver =
-            new g2o::LinearSolverCholmod<g2o::BlockSolver_7_3::PoseMatrixType>();
-            g2o::BlockSolver_7_3 * solver_ptr= new g2o::BlockSolver_7_3(linearSolver);
-            g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-            
-            solver->setUserLambdaInit(1e-16);
-            optimizer.setAlgorithm(solver);
-            
-            vector<g2o::Sim3,Eigen::aligned_allocator<g2o::Sim3> > vScw(vpKFs.size());
-            vector<g2o::VertexSim3Expmap*> vpVertices(vpKFs.size());
-            
-            
-            for(size_t i=0, iend=vpKFs.size(); i<iend;i++){
-                
-                KeyFrame* pKF = vpKFs[i];
-                g2o::VertexSim3Expmap* VSim3 = new g2o::VertexSim3Expmap();
-                
-                const int nIDi = pKF->mnId;
-                assert(nIDi==pKF->mnId);
-                
-                
-                Eigen::Matrix<double,3,3> Rcw   = pKF->pose.rotation;
-                Eigen::Matrix<double,3,1> tcw   = -pKF->pose.rotation*pKF->pose.translation;
-                double                    scale = pKF->scale;
-                
-                g2o::Sim3 Siw(Rcw,tcw,scale);
-          
-                //printf("%x\n",VSim3);
-                //cout<<Rcw<<endl;
-                
-                vScw[nIDi] = Siw;
-                VSim3->setEstimate(Siw);
-                
-                VSim3->setId(nIDi);
-                VSim3->setMarginalized(false);
-                
-                if (i==0) {
-                    VSim3->setFixed(true);
-                }
-                
-                optimizer.addVertex(VSim3);
-                vpVertices[nIDi]=VSim3;
-            }
-            
-            const Eigen::Matrix<double,7,7> matLambda = Eigen::Matrix<double,7,7>::Identity();
-            std::vector<g2o::EdgeSim3*> edges(0);
-            for (int i=0;i<constraints.size();i++) {
-                
-                g2o::EdgeSim3* e = new g2o::EdgeSim3();
-                
-                e->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(constraints[i].variableIndex1)));
-                e->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(constraints[i].variableIndex2)));
-                
-                Eigen::Matrix<double,3,3> Rcw   =   constraints[i].rotation12;
-                Eigen::Matrix<double,3,1> tcw   =  -constraints[i].rotation12*constraints[i].translation12;
-                double                    scale =   1.0/constraints[i].scale12;
-                
-                
-                //printf("%x %d %d\n",e,constraints[i].keyFrameIndex1,constraints[i].keyFrameIndex2);
-                //cout<<Rcw<<endl;
-                //cout<<tcw.transpose()<<endl;
-                //cout<<constraints[i].scale12<<endl;
-                
-                g2o::Sim3 Siw(Rcw,tcw,scale);
-                
-                //g2o::RobustKernelHuber* kernel=new g2o::RobustKernelHuber;
-                //kernel->setDelta(1.0);
-                //e->setRobustKernel(kernel);
-                
-                e->setMeasurement(Siw);
-                e->information() = matLambda;
-                optimizer.addEdge(e);
-                edges.push_back(e);
-                //e->computeError();
-                /*printf("edge %x %x %d %d\n",optimizer.vertex(constraints[i].variableIndex1),
-                       optimizer.vertex(constraints[i].variableIndex2),constraints[i].keyFrameIndex1,constraints[i].keyFrameIndex2);*/
-            }
-            
-            double C=5.0;
-            optimizer.initializeOptimization();
-            optimizer.optimize(1);
-            
-            for ( int itr = 0; itr < 20; itr++ ) {
-                // E step
-                for(int i=0;i<edges.size();i++){
-                    edges[i]->computeError();
-                    double weight=(C*C) / (C*C+edges[i]->chi2()*edges[i]->chi2());
-                    edges[i]->setInformation(matLambda*weight);
-                }
-                // M step
-                optimizer.initializeOptimization();
-                optimizer.optimize(1);
-            }
-            
-            /*for(int i=0;i<edges.size();i++){
-                edges[i]->computeError();
-                constraints[i].weight=(C*C) / (C*C+edges[i]->chi2()*edges[i]->chi2());;
-            }*/
-            
-            for(size_t i=0;i<vpKFs.size();i++){
-                
-                KeyFrame* pKFi = vpKFs[i];
-                const int nIDi = pKFi->mnId;
-                g2o::VertexSim3Expmap* VSim3 = static_cast<g2o::VertexSim3Expmap*>(optimizer.vertex(nIDi));
-                g2o::Sim3 CorrectedSiw =  VSim3->estimate();
-                Eigen::Matrix3d eigR = CorrectedSiw.rotation().toRotationMatrix();
-                Eigen::Vector3d eigt = CorrectedSiw.translation();
-                eigt=-eigR.transpose()*eigt;
-                
-                vpKFs[i]->pose.rotation=eigR;
-                vpKFs[i]->pose.translation=eigt;
-                vpKFs[i]->scale=CorrectedSiw.scale();
-            }
-        }
-        
-        std::vector<KeyFrame*> vpKFs;
-    };
-    
-    class GlobalRotationAveraging{
-    public:
-        
-        Engine *ep;
-        void initialize(){
-            //Engine *ep = engOpen("");
-            //assert(ep!=NULL);
-        }
-        
-        void globalRotationAveraging(const int num_camera,
-                                     std::vector<double> &cameraIds,
-                                     std::vector<double> &relativeRotations,
-                                     std::vector<double> &initialRotations){
-            
-            Engine *ep = engOpen(NULL);
-            assert(ep!=NULL);
-            
-            mxArray *inArray[3];
-            inArray[0]=mxCreateDoubleMatrix(cameraIds.size(),1,mxREAL);
-            inArray[1]=mxCreateDoubleMatrix(relativeRotations.size(),1,mxREAL);
-            inArray[2]=mxCreateDoubleMatrix(9*num_camera,1,mxREAL);
-            
-            
-            memcpy(mxGetPr(inArray[0]),&cameraIds[0],cameraIds.size()*sizeof(double));
-            memcpy(mxGetPr(inArray[1]),&relativeRotations[0],relativeRotations.size()*sizeof(double));
-            
-            engEvalString(ep,"clear all;");
-            
-            engPutVariable(ep, "cameraIds", inArray[0]);
-            engPutVariable(ep, "relativeRotations", inArray[1]);
-            engPutVariable(ep, "initialRotations", inArray[2]);
-            
-            engEvalString(ep, "cd '/Users/chaos/Desktop/Project/CuiLib'; globalR=GlobalRotationRegistration(relativeRotations,cameraIds);");
-            mxArray *outArray=engGetVariable(ep,"globalR");
-            double *globalRPtr=(double*)mxGetData(outArray);
-            memcpy(&initialRotations[0],globalRPtr,sizeof(double)*initialRotations.size());
-            
-            mxDestroyArray(inArray[0]);
-            mxDestroyArray(inArray[1]);
-            mxDestroyArray(inArray[2]);
-            mxDestroyArray(outArray);
-            
-            engClose(ep);
-        }
-        
-        void estimateGlobalRotation(std::vector<RotationConstraint> &relativeTransforms,
-                                    std::vector<Eigen::Matrix3d>   &globalRotations,
-                                    int num_camera){
-            
-            int num_relative=relativeTransforms.size();
-            std::vector<double> relativeRotations(9*num_relative);
-            std::vector<double> cameraIds(2*num_relative);
-            
-            for(int i=0;i<num_relative;i++){
-                
-                int index1=relativeTransforms[i].variableIndex1;
-                int index2=relativeTransforms[i].variableIndex2;
-                
-                cameraIds[2*i]=index1;
-                cameraIds[2*i+1]=index2;
-                
-                Eigen::Matrix3d rotation=relativeTransforms[i].rotation12;
-                rotation.transposeInPlace();
-                memcpy(&relativeRotations[9*i],&rotation(0),9*sizeof(double));
-            }
-            
-            std::vector<double> globalRotationsData(9*num_camera);
-            globalRotationAveraging(num_camera,cameraIds,relativeRotations,globalRotationsData);
-            
-            globalRotations.resize(num_camera);
-            for(int i=0;i<num_camera;i++){
-                memcpy(&globalRotations[i](0),&globalRotationsData[9*i],9*sizeof(double));
-                globalRotations[i].transposeInPlace();
-            }
-        }
-        
-        void release(){
-            engClose(ep);
-        }
-    };
-
-    
     void GlobalReconstruction::getScaleConstraint(KeyFrame* keyFrame1,
-                                                  std::vector<ScaleConstraint>& scaleConstraints){
+                                                  vector<ScaleConstraint>& scaleConstraints){
         
-        for(map<KeyFrame*,std::vector<int> >::iterator mit=keyFrame1->mConnectedKeyFrameMatches.begin(),
+        for(map<KeyFrame*,vector<int> >::iterator mit=keyFrame1->mConnectedKeyFrameMatches.begin(),
             mend=keyFrame1->mConnectedKeyFrameMatches.end();
             mit!=mend;
             mit++){
@@ -356,8 +42,8 @@ namespace GSLAM {
             ScaleConstraint constraint;
             constraint.keyFrameIndex1=keyFrame1->mnId;
             constraint.keyFrameIndex2=keyFrame2->mnId;
-            std::vector<double> scales;
-            std::vector<int>& matches=mit->second;
+            vector<double> scales;
+            vector<int>& matches=mit->second;
             
             for (int i=0;i<matches.size();i++) {
                 if (matches[i]>=0) {
@@ -373,13 +59,13 @@ namespace GSLAM {
                     /*printf("%d %d %x %x\n",keyFrame1->outId,keyFrame2->outId,
                            keyFrame1->mvLocalMapPoints[i].gMP,keyFrame2->mvLocalMapPoints[matches[i]].gMP);
                     
-                    for(std::map<KeyFrame*,int>::iterator mit=keyFrame1->mvLocalMapPoints[i].gMP->measurements.begin(),
+                    for(map<KeyFrame*,int>::iterator mit=keyFrame1->mvLocalMapPoints[i].gMP->measurements.begin(),
                         mend=keyFrame1->mvLocalMapPoints[i].gMP->measurements.end();
                         mit!=mend; mit++){
                         printf("%d %d\n",mit->first->outId,mit->second);
                     }
                     
-                    for(std::map<KeyFrame*,int>::iterator mit=keyFrame2->mvLocalMapPoints[matches[i]].gMP->measurements.begin(),
+                    for(map<KeyFrame*,int>::iterator mit=keyFrame2->mvLocalMapPoints[matches[i]].gMP->measurements.begin(),
                         mend=keyFrame2->mvLocalMapPoints[matches[i]].gMP->measurements.end();
                         mit!=mend; mit++){
                         printf("%d %d\n",mit->first->outId,mit->second);
@@ -392,8 +78,8 @@ namespace GSLAM {
             }
             
             if (scales.size()>=scaleThreshold) {
-                std::sort(scales.begin(),scales.end());
-                constraint.value12=std::log(scales[scales.size()/2]);
+                sort(scales.begin(),scales.end());
+                constraint.value12=log(scales[scales.size()/2]);
             }else{
                 continue;
             }
@@ -404,7 +90,7 @@ namespace GSLAM {
     }
     
     void GlobalReconstruction::getRotationConstraint(KeyFrame* keyFrame1,
-                                                     std::vector<RotationConstraint>& rotationConstraints){
+                                                     vector<RotationConstraint>& rotationConstraints){
         
         for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
             mend=keyFrame1->mConnectedKeyFramePoses.end();
@@ -417,16 +103,17 @@ namespace GSLAM {
             constraint.keyFrameIndex1=keyFrame1->mnId;
             constraint.keyFrameIndex2=keyFrame2->mnId;
             constraint.rotation12=pose.rotation;
-            
             if(pose.scale==-1&&(keyFrame1->frameId<70||keyFrame2->frameId<70)){
                 continue;
             }
+            
+            //printf("add %d %d\n",constraint.keyFrameIndex1,constraint.keyFrameIndex2);
             rotationConstraints.push_back(constraint);
         }
     }
     
     void GlobalReconstruction::getTranslationConstraint(KeyFrame* keyFrame1,
-                                                        std::vector<TranslationConstraint>& translationConstraints){
+                                                        vector<TranslationConstraint>& translationConstraints){
         
         for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
             mend=keyFrame1->mConnectedKeyFramePoses.end();
@@ -446,7 +133,7 @@ namespace GSLAM {
         }
     }
     
-    void GlobalReconstruction::getSIM3Constraint(KeyFrame* keyFrame1,std::vector<SIM3Constraint>& sim3Constraints){
+    void GlobalReconstruction::getSIM3Constraint(KeyFrame* keyFrame1,vector<SIM3Constraint>& sim3Constraints){
         
         for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
             mend=keyFrame1->mConnectedKeyFramePoses.end();
@@ -461,8 +148,8 @@ namespace GSLAM {
             constraint.translation12=pose.translation;
             constraint.weight=1.0;
             
-            std::vector<int>& matches=keyFrame1->mConnectedKeyFrameMatches[keyFrame2];
-            std::vector<double> scales;
+            vector<int>& matches=keyFrame1->mConnectedKeyFrameMatches[keyFrame2];
+            vector<double> scales;
             for (int i=0;i<matches.size();i++) {
                 if (matches[i]>=0) {
                     assert(keyFrame1->mvLocalMapPoints[i].isEstimated);
@@ -480,7 +167,7 @@ namespace GSLAM {
                 continue;
             }
             
-            std::sort(scales.begin(),scales.end());
+            sort(scales.begin(),scales.end());
             constraint.scale12=scales[scales.size()/2];
             
             sim3Constraints.push_back(constraint);
@@ -489,8 +176,8 @@ namespace GSLAM {
     
     void GlobalReconstruction::estimateScale(){
         
-        std::vector<int> scaleIndex(keyFrames.size(),-1);
-        std::vector<ScaleConstraint> scaleConstraints;
+        vector<int> scaleIndex(keyFrames.size(),-1);
+        vector<ScaleConstraint> scaleConstraints;
         
         for (int i=0;i<keyFrames.size();i++) {
             assert(keyFrames[i]->mnId==i);
@@ -524,7 +211,7 @@ namespace GSLAM {
         constraint.weight=1.0;
         scaleConstraints.push_back(constraint);
         
-        std::vector<double> newScales;
+        vector<double> newScales;
         newScales.resize(nScales);
         for(int i=0;i<keyFrames.size();i++){
             if (scaleIndex[i]!=-1) {
@@ -533,14 +220,14 @@ namespace GSLAM {
         }
         /*for (int i=0;i<scaleConstraints.size();i++) {
             
-            std::cout<<scaleConstraints[i].keyFrameIndex1<<' '
+            cout<<scaleConstraints[i].keyFrameIndex1<<' '
                      <<scaleConstraints[i].keyFrameIndex2<<' '
                      <<scaleConstraints[i].variableIndex1<<' '
                      <<scaleConstraints[i].variableIndex2<<' '
-                     <<scaleConstraints[i].value12<<std::endl;
+                     <<scaleConstraints[i].value12<<endl;
         }
         for (int i=0;i<newScales.size();i++) {
-            std::cout<<i<<' '<<newScales[i]<<std::endl;
+            cout<<i<<' '<<newScales[i]<<endl;
         }*/
         globalScaleEstimation.maxIterations=10000;
         globalScaleEstimation.solve(scaleConstraints,newScales);
@@ -552,11 +239,11 @@ namespace GSLAM {
         
         for (int i=0;i<keyFrames.size();i++) {
             keyFrames[i]->logScale=newScales[scaleIndex[i]];
-            keyFrames[i]->scale=std::exp(keyFrames[i]->logScale);
+            keyFrames[i]->scale=exp(keyFrames[i]->logScale);
             printf("%f\n",keyFrames[i]->scale);
         }
         
-        static std::ofstream record("/Users/chaos/Desktop/debug/scales_error.txt");
+        static ofstream record("/Users/chaos/Desktop/debug/scales_error.txt");
         for (int i=0;i<scaleConstraints.size();i++) {
             if (scaleConstraints[i].keyFrameIndex1==-1) {
                 continue;
@@ -568,25 +255,15 @@ namespace GSLAM {
             //printf("%f %d %d\n",diff,id1,id2);
             record<<id1<<' '
                   <<id2<<' '
-                  <<diff<<std::endl;
+                  <<diff<<endl;
         }
         //getchar();
     }
     
-    void GlobalReconstruction::estimateRotation(std::vector<int> &rotationIndex){
+    void GlobalReconstruction::estimateRotation(vector<int> &rotationIndex){
         
         std::vector<RotationConstraint> rotationConstraints(0);
         std::vector<Eigen::Matrix3d> newRotations;
-        
-        /*RotationConstraint constraint;
-         constraint.keyFrameIndex1=-1;
-         constraint.keyFrameIndex2=0;
-         constraint.variableIndex1=-1;
-         constraint.variableIndex2=0;
-         constraint.rotation1=Eigen::Matrix3d::Identity();
-         constraint.rotation12=Eigen::Matrix3d::Identity();
-         constraint.weight=1.0;
-         rotationConstraints.push_back(constraint);*/
         
         int nRotations=0;
         rotationIndex.resize(keyFrames.size(),-1);
@@ -611,12 +288,9 @@ namespace GSLAM {
                 rotationConstraints[i].variableIndex1=rotationIndex[rotationConstraints[i].keyFrameIndex1];
                 rotationConstraints[i].variableIndex2=rotationIndex[rotationConstraints[i].keyFrameIndex2];
             }
-            //globalRotationEstimation.maxOuterIterations=1000;
-            //globalRotationEstimation.maxInnerIterations=20;
-            //globalRotationEstimation.solve(rotationConstraints,newRotations);
         }
         
-        /*std::unordered_map<theia::ViewIdPair,theia::TwoViewInfo> view_pairs;
+        std::unordered_map<theia::ViewIdPair,theia::TwoViewInfo> view_pairs;
         std::unordered_map<theia::ViewId,Eigen::Vector3d> orientations;
         
         theia::RobustRotationEstimator::Options options;
@@ -631,48 +305,43 @@ namespace GSLAM {
             Eigen::Vector3d angle;
             ceres::RotationMatrixToAngleAxis(rotationConstraints[i].rotation12.data(),angle.data());
             view_pairs[viewPair].rotation_2=angle;
-        }*/
-        
-        GlobalRotationAveraging rotationAveraging;
-        rotationAveraging.initialize();
-        rotationAveraging.estimateGlobalRotation(rotationConstraints,newRotations,
-                                                 keyFrames.size());
-        rotationAveraging.release();
-        /*for (int i=1;i<newRotations.size();i++) {
-            newRotations[i]=newRotations[i]*newRotations[0].transpose();
         }
-        newRotations[0]=Eigen::Matrix3d::Identity();
-        
         newRotations.resize(keyFrames.size());
         newRotations[0]=Eigen::Matrix3d::Identity();
         for (int i=1;i<keyFrames.size();i++) {
             newRotations[i]=keyFrames[i-1]->mvLocalFrames.back().pose.rotation*newRotations[i-1];
         }
         
+        
         for (int i=0;i<keyFrames.size();i++) {
             Eigen::Vector3d angle;
             ceres::RotationMatrixToAngleAxis(newRotations[i].data(),angle.data());
             orientations[i]=angle;
         }
+        std::cout<<"theia rotation start"<<std::endl;
         rotation_estimator.EstimateRotations(view_pairs,&orientations);
+        std::cout<<"theia rotation finished"<<std::endl;
+        
         for (int i=0;i<newRotations.size();i++) {
             ceres::AngleAxisToRotationMatrix(orientations[i].data(),newRotations[i].data());
-        }*/
-        
+            std::cout<<orientations[i].transpose()<<std::endl;
+        }
         
         for (int i=1;i<newRotations.size();i++) {
             newRotations[i]=newRotations[i]*newRotations[0].transpose();
         }
         newRotations[0]=Eigen::Matrix3d::Identity();
+        
         for (int k=0;k<keyFrames.size();k++) {
             keyFrames[k]->pose.rotation=newRotations[rotationIndex[k]];
         }
+        std::cout<<"rotation end"<<std::endl;
     }
     
-    void GlobalReconstruction::estimateRotationRobust(const std::vector<int> &rotationIndex){
+    void GlobalReconstruction::estimateRotationRobust(const vector<int> &rotationIndex){
         
-        std::vector<RotationConstraint> rotationConstraints(0);
-        std::vector<Eigen::Matrix3d> newRotations(keyFrames.size());
+        vector<RotationConstraint> rotationConstraints(0);
+        vector<Eigen::Matrix3d> newRotations(keyFrames.size());
 
         for (int k=0;k<keyFrames.size();k++) {
             getRotationConstraint(keyFrames[k],rotationConstraints);
@@ -711,9 +380,9 @@ namespace GSLAM {
         }
     }
     
-    void GlobalReconstruction::estimateTranslation(const std::vector<int> &translationIndex){
+    void GlobalReconstruction::estimateTranslation(const vector<int> &translationIndex){
         
-        std::vector<TranslationConstraint> translationConstraints;
+        vector<TranslationConstraint> translationConstraints;
         for (int k=0;k<keyFrames.size();k++) {
             getTranslationConstraint(keyFrames[k],translationConstraints);
         }
@@ -739,12 +408,12 @@ namespace GSLAM {
             translationConstraints[i].translation12=translationConstraints[i].rotation1.transpose()
                                                    *translationConstraints[i].translation12;
             
-            /*std::cout<<translationConstraints[i].variableIndex1<<' '
-            <<translationConstraints[i].variableIndex2<<std::endl
-            <<translationConstraints[i].translation12<<std::endl<<translationConstraints[i].rotation1<<std::endl;*/
+            /*cout<<translationConstraints[i].variableIndex1<<' '
+            <<translationConstraints[i].variableIndex2<<endl
+            <<translationConstraints[i].translation12<<endl<<translationConstraints[i].rotation1<<endl;*/
         }
         
-        std::vector<Eigen::Vector3d> newTranslations(keyFrames.size(),Eigen::Vector3d::Zero());
+        vector<Eigen::Vector3d> newTranslations(keyFrames.size(),Eigen::Vector3d::Zero());
         globalTranslationEstimation.maxIterations=10000;
         globalTranslationEstimation.solve(translationConstraints,newTranslations);
         
@@ -755,10 +424,10 @@ namespace GSLAM {
         
         for (int k=0;k<keyFrames.size();k++) {
             keyFrames[k]->pose.translation=newTranslations[translationIndex[k]];
-            std::cout<<keyFrames[k]->pose.translation.transpose()<<std::endl;
+            cout<<keyFrames[k]->pose.translation.transpose()<<endl;
         }
         
-        static std::ofstream record("/Users/chaos/Desktop/debug/trans_error.txt");
+        static ofstream record("/Users/chaos/Desktop/debug/trans_error.txt");
         
         
         for (int i=0;i<translationConstraints.size();i++) {
@@ -775,102 +444,242 @@ namespace GSLAM {
             
             record<<id1<<' '
                   <<id2<<' '
-                  <<diff<<std::endl;
+                  <<diff<<endl;
 
         }
     }
-    
-    void GlobalReconstruction::estimateSIM3(){
+    struct GlobalError2{
         
-        std::vector<SIM3Constraint> rotationConstraints;
-        int nRotations=0;
-        std::vector<int> rotationIndex;
-        rotationIndex.resize(keyFrames.size(),-1);
-        
-        sim3PoseGraph posegraph;
-        //sim3PoseGraphEM posegraph;
-        
-        for (int k=0;k<keyFrames.size();k++) {
-            getSIM3Constraint(keyFrames[k],rotationConstraints);
-            
-            for (int i=0;i<rotationConstraints.size();i++) {
-                
-                if (rotationIndex[rotationConstraints[i].keyFrameIndex1]==-1) {
-                    rotationIndex[rotationConstraints[i].keyFrameIndex1]=nRotations;
-                    nRotations++;
-                }
-                if (rotationIndex[rotationConstraints[i].keyFrameIndex2]==-1) {
-                    rotationIndex[rotationConstraints[i].keyFrameIndex2]=nRotations;
-                    nRotations++;
-                }
-                rotationConstraints[i].variableIndex1=rotationIndex[rotationConstraints[i].keyFrameIndex1];
-                rotationConstraints[i].variableIndex2=rotationIndex[rotationConstraints[i].keyFrameIndex2];
-                
-                /*printf("%d %d %d %d\n",rotationConstraints[i].variableIndex1,rotationConstraints[i].keyFrameIndex1,
-                                       rotationConstraints[i].variableIndex2,rotationConstraints[i].keyFrameIndex2);*/
-                
-            }
-            
-            //printf("%d %d\n",nRotations,keyFrames.size());
-            //assert(nRotations<=keyFrames.size());
-            //getchar();
-            posegraph.vpKFs=this->keyFrames;
-            posegraph.vpKFs.resize(nRotations);
-            posegraph.optimizeSim3PoseGraph(rotationConstraints);
+        GlobalError2(const double _tracked_x,const double _tracked_y):
+        tracked_x(_tracked_x), tracked_y(_tracked_y){
         }
         
-        
-        
-        /*std::ofstream results("/Users/ctang/Desktop/debug/results.txt");
-        for (int k=0;k<keyFrames.size();k++) {
-            results<<keyFrames[k]->outId-1<<' '<<keyFrames[k]->pose.translation.transpose();
-            for (int i1=0;i1<3;i1++) {
-                for (int i2=0;i2<3;i2++) {
-                    results<<' '<<keyFrames[k]->pose.rotation(i1,i2);
-                }
-            }
-            results<<endl;
+        template <typename T>
+        bool operator()(const T* const camera,
+                        const T* const point,
+                        T* residuals) const {
+            
+            
+            
+            T transformed[3];
+            ceres::AngleAxisRotatePoint(camera,point,transformed);
+            
+            transformed[0]+=camera[3];
+            transformed[1]+=camera[4];
+            transformed[2]+=camera[5];
+            
+            
+            T predicted_x=transformed[0]/transformed[2];
+            T predicted_y=transformed[1]/transformed[2];
+            
+            residuals[0]=predicted_x-(T)tracked_x;
+            residuals[1]=predicted_y-(T)tracked_y;
+            
+            residuals[0]=residuals[0];
+            residuals[1]=residuals[1];
+            
+            return true;
         }
-        results.close();
+        
+        static ceres::CostFunction* Create(const double tracked_x,
+                                           const double tracked_y) {
+            return (new ceres::AutoDiffCostFunction<GlobalError2,2,6,3>(new GlobalError2(tracked_x,tracked_y)));
+        };
+        
+        double tracked_x;
+        double tracked_y;
+    };
+    void GlobalReconstruction::globalRefine(){
+        
+        std::vector<double>             points;
+        std::vector<double>             cameras;
+        std::vector<std::pair<int,int>> pairCameraPoint;
+        
+        int nPoints=0;
+        cameras.resize(6*keyFrames.size());
+        for (int i=0;i<keyFrames.size();i++) {
+            KeyFrame* keyFrame=keyFrames[i];
+            
+            Eigen::Vector3d translation=-keyFrame->pose.rotation*keyFrame->pose.translation;
+            ceres::RotationMatrixToAngleAxis(keyFrame->pose.rotation.data(),
+                                             &cameras[6*i]);
+            cameras[6*i+3]=translation(0);
+            cameras[6*i+4]=translation(1);
+            cameras[6*i+5]=translation(2);
+            
+            nPoints+=keyFrame->mvLocalMapPoints.size();
+        }
+        points.resize(3*nPoints);
+        nPoints=0;
+        
+        ceres::Problem problem;
+        ceres::LossFunction* loss_function = new ceres::HuberLoss(0.003);
         
         
-        std::ofstream results0("/Users/ctang/Desktop/debug/connections.txt");
         for (int k=0;k<keyFrames.size();k++) {
+            
             KeyFrame* keyFrame1=keyFrames[k];
-            for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
-                mend=keyFrame1->mConnectedKeyFramePoses.end();
+            assert(keyFrame1->mnId==k);
+            for (int i=0;i<keyFrame1->mvLocalMapPoints.size();i++) {
+                if (keyFrame1->mvLocalMapPoints[i].isEstimated) {
+                    
+                    Eigen::Vector3d point3D=keyFrame1->mvLocalMapPoints[i].getPosition();
+                    point3D/=keyFrame1->scale;
+                    point3D=keyFrame1->pose.rotation.transpose()*point3D+keyFrame1->pose.translation;
+                    
+                    points[3*(nPoints+i)]=point3D(0);
+                    points[3*(nPoints+i)+1]=point3D(1);
+                    points[3*(nPoints+i)+2]=point3D(2);
+                }
+            }
+            std::vector<bool> status(keyFrame1->mvLocalMapPoints.size(),false);
+            for(std::map<KeyFrame*,std::vector<int> >::iterator mit=keyFrame1->mConnectedKeyFrameMatches.begin(),
+                mend=keyFrame1->mConnectedKeyFrameMatches.end();
                 mit!=mend;
                 mit++){
+                
                 KeyFrame* keyFrame2=mit->first;
-                if (mit->second.scale==-1.0) {
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<' 2'<<endl;
-                }else if (keyFrame2->nextKeyFramePtr==keyFrame1||keyFrame2->prevKeyFramePtr==keyFrame1) {
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<' 1'<<endl;
-                }else{
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<' 0'<<endl;
+                if (keyFrame2->mvLocalFrames.empty()) {
+                    continue;
+                }
+                Transform transform=keyFrame1->mConnectedKeyFramePoses[keyFrame2];
+                
+                if (transform.scale<-10.0&&disable_loop) {
+                    continue;
+                }
+                
+                std::vector<int>& matches=mit->second;
+                assert(matches.size()==keyFrame1->mvLocalMapPoints.size());
+                
+                for (int i=0;i<matches.size();i++) {
+                    if (matches[i]>=0) {
+                        
+                        assert(keyFrame1->mvLocalMapPoints[i].isEstimated);
+                        
+                        Eigen::Vector3d projection(&points[3*(nPoints+i)]);
+                        projection=keyFrame2->pose.rotation*(projection-keyFrame2->pose.translation);
+                        projection/=projection(2);
+                        projection-=keyFrame2->mvLocalMapPoints[matches[i]].vec;
+                        
+                        
+                        if(!keyFrame2->mvLocalMapPoints[matches[i]].isEstimated&&projection.norm()>0.008){
+                            continue;
+                        }
+                        ceres::CostFunction* cost_function = GlobalError2::Create(keyFrame2->mvLocalMapPoints[matches[i]].vec(0),
+                                                                                  keyFrame2->mvLocalMapPoints[matches[i]].vec(1));
+                        problem.AddResidualBlock(cost_function,loss_function,
+                                                 &cameras[6*keyFrame2->mnId],
+                                                 &points[3*(nPoints+i)]);
+                        status[i]=true;
+                    }
                 }
             }
+            
+            if(keyFrame1->nextKeyFramePtr!=NULL){
+                for(int i=0;i<keyFrame1->mvLocalMapPoints.size();i++){
+                    
+                    Eigen::Vector3d projection(&points[3*(nPoints+i)]);
+                    projection=keyFrame1->nextKeyFramePtr->pose.rotation*(projection-keyFrame1->nextKeyFramePtr->pose.translation);
+                    projection/=projection(2);
+                    projection-=(*keyFrame1->mvLocalMapPoints[i].vecs.back());
+                    
+                    if (keyFrame1->mvLocalMapPoints[i].isEstimated
+                        &&keyFrame1->mvLocalMapPoints[i].vecs.back()!=NULL&&projection.norm()<0.008) {
+                        assert(keyFrame1->mvLocalMapPoints[i].vecs.size()==keyFrame1->mvLocalFrames.size());
+                        Eigen::Vector3d projection=(*keyFrame1->mvLocalMapPoints[i].vecs.back());
+                        projection/=projection(2);
+                        
+                        ceres::CostFunction* cost_function = GlobalError2::Create(projection(0),projection(1));
+                        problem.AddResidualBlock(cost_function,loss_function,
+                                                 &cameras[6*keyFrame1->nextKeyFramePtr->mnId],
+                                                 &points[3*(nPoints+i)]);
+                        status[i]=true;
+                    }
+                }
+            }
+            
+            for (int i=0;i<keyFrame1->mvLocalMapPoints.size();i++) {
+                if (status[i]==true) {
+                    
+                    ceres::CostFunction* cost_function = GlobalError2::Create(keyFrame1->mvLocalMapPoints[i].vec(0),
+                                                                              keyFrame1->mvLocalMapPoints[i].vec(1));
+                    problem.AddResidualBlock(cost_function,loss_function,
+                                             &cameras[6*keyFrame1->mnId],
+                                             &points[3*(nPoints+i)]);
+                    keyFrame1->mvLocalMapPoints[i].isEstimated=true;
+                }else{
+                    keyFrame1->mvLocalMapPoints[i].isEstimated=false;
+                }
+            }
+            nPoints+=keyFrame1->mvLocalMapPoints.size();
         }
-        results.close();
         
         
-        std::ofstream results2("/Users/ctang/Desktop/debug/points.txt");
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::SPARSE_SCHUR;
+        options.minimizer_progress_to_stdout = true;
+        options.max_num_iterations=100;
+        
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        
+        for(int i=0;i<keyFrames.size();i++){
+            
+            Eigen::Matrix3d rotation;
+            ceres::AngleAxisToRotationMatrix(&cameras[6*i],
+                                             rotation.data());
+            
+            Eigen::Vector3d translation;
+            translation(0)=cameras[6*i+3];
+            translation(1)=cameras[6*i+4];
+            translation(2)=cameras[6*i+5];
+            translation=-rotation.transpose()*translation;
+            
+            keyFrames[i]->pose.rotation=rotation;
+            keyFrames[i]->pose.translation=translation;
+        }
+        
+        
+        
+        nPoints=0;
+        for (int k=0;k<keyFrames.size();k++) {
+            std::vector<double> scales;
+            for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
+                if (keyFrames[k]->mvLocalMapPoints[i].isEstimated) {
+                    keyFrames[k]->mvLocalMapPoints[i].globalPosition(0)=points[3*(nPoints+i)];
+                    keyFrames[k]->mvLocalMapPoints[i].globalPosition(1)=points[3*(nPoints+i)+1];
+                    keyFrames[k]->mvLocalMapPoints[i].globalPosition(2)=points[3*(nPoints+i)+2];
+                    
+                    Eigen::Vector3d globalDistance=keyFrames[k]->mvLocalMapPoints[i].globalPosition
+                    -keyFrames[k]->pose.translation;
+                    Eigen::Vector3d localDistance=keyFrames[k]->mvLocalMapPoints[i].getPosition();
+                    scales.push_back(localDistance.norm()/globalDistance.norm());
+                }
+            }
+            std::sort(scales.begin(),scales.end());
+            keyFrames[k]->scale=scales[scales.size()/2];
+            nPoints+=keyFrames[k]->mvLocalMapPoints.size();
+        }
+        
+        for(int i=1;i<keyFrames.size();i++){
+            keyFrames[i]->pose.rotation=keyFrames[i]->pose.rotation*keyFrames[0]->pose.rotation.transpose();
+            keyFrames[i]->pose.translation=keyFrames[0]->pose.rotation*(keyFrames[i]->pose.translation
+                                                                        -keyFrames[0]->pose.translation);
+        }
+        
         for (int k=0;k<keyFrames.size();k++) {
             for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
-                if(keyFrames[k]->mvLocalMapPoints[i].isEstimated){
-                    
-                    Eigen::Vector3d point3D=keyFrames[k]->mvLocalMapPoints[i].getPosition();
-                    point3D*=keyFrames[k]->scale;
-                    point3D=keyFrames[k]->pose.rotation.transpose()*point3D+keyFrames[k]->pose.translation;
-                    
-                    uchar* color=keyFrames[k]->mvLocalMapPoints[i].color;
-                    results2<<point3D.transpose()<<' '<<(int)color[0]<<' '<<(int)color[1]<<' '<<(int)color[2]<<endl;
+                if (keyFrames[k]->mvLocalMapPoints[i].isEstimated) {
+                    keyFrames[k]->mvLocalMapPoints[i].globalPosition=keyFrames[0]->pose.rotation*
+                    (keyFrames[k]->mvLocalMapPoints[i].globalPosition-keyFrames[0]->pose.translation);
                 }
             }
         }
-        results2.close();*/
-
+        
+        keyFrames[0]->pose.rotation=Eigen::Matrix3d::Identity();
+        keyFrames[0]->pose.translation=Eigen::Vector3d::Zero();
     }
+    
     
     
     void GlobalReconstruction::addNewKeyFrame(KeyFrame* keyFrame){
@@ -879,7 +688,7 @@ namespace GSLAM {
     
     void GlobalReconstruction::savePly(){
         
-        std::ofstream results("/Users/chaos/Desktop/debug/key.txt");
+        ofstream results(path+std::string("/keyframes.txt"));
         for (int k=0;k<keyFrames.size();k++) {
             results<<keyFrames[k]->frameId<<' '<<keyFrames[k]->pose.translation.transpose();
             for (int i1=0;i1<3;i1++) {
@@ -892,29 +701,8 @@ namespace GSLAM {
         results.close();
         
         
-        std::ofstream trajectories("/Users/chaos/Desktop/debug/tra.txt");
+        ofstream trajectories(path+std::string("/frames.txt"));
         for (int k=0;k<keyFrames.size();k++) {
-            
-            /*for (int i=0;i<keyFrames[k]->mvCloseFrames.size();i++) {
-                results<<keyFrames[k]->mvCloseFrames[i].frameId;
-                
-                Eigen::Matrix3d rotation;
-                rotation   =keyFrames[k]->mvCloseFrames[i].pose.rotation*keyFrames[k]->pose.rotation;
-                
-                Eigen::Vector3d translation;
-                translation=keyFrames[k]->mvCloseFrames[i].pose.translation/keyFrames[k]->scale;
-                translation=keyFrames[k]->pose.rotation.transpose()*translation;
-                translation+=keyFrames[k]->pose.translation;
-                
-                trajectories<<keyFrames[k]->mvCloseFrames[i].frameId<<' '<<translation.transpose();
-                for (int i1=0;i1<3;i1++) {
-                    for (int i2=0;i2<3;i2++) {
-                        trajectories<<' '<<rotation(i1,i2);
-                    }
-                }
-                trajectories<<endl;
-            }*/
-            
             for (int i=0;i<keyFrames[k]->mvLocalFrames.size();i++) {
                 
                 Eigen::Matrix3d rotation;
@@ -937,57 +725,13 @@ namespace GSLAM {
         }
         trajectories.close();
         
-        
-        std::ofstream results0("/Users/chaos/Desktop/debug/connections.txt");
-        for (int k=0;k<keyFrames.size();k++) {
-            KeyFrame* keyFrame1=keyFrames[k];
-            for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
-                mend=keyFrame1->mConnectedKeyFramePoses.end();
-                mit!=mend;
-                mit++){
-                KeyFrame* keyFrame2=mit->first;
-                if (mit->second.scale==-1.0) {
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<" 2"<<endl;
-                }else if (keyFrame2->nextKeyFramePtr==keyFrame1||keyFrame2->prevKeyFramePtr==keyFrame1) {
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<" 1"<<endl;
-                }else{
-                    results0<<keyFrame1->mnId<<' '<<keyFrame2->mnId<<" 0"<<endl;
-                }
-            }
-        }
-        results0.close();
-        
-        
-        std::ofstream results1("/Users/chaos/Desktop/debug/connections2.txt");
-        for (int k=0;k<keyFrames.size();k++) {
-            KeyFrame* keyFrame1=keyFrames[k];
-            for(map<KeyFrame*,Transform>::iterator mit=keyFrame1->mConnectedKeyFramePoses.begin(),
-                mend=keyFrame1->mConnectedKeyFramePoses.end();
-                mit!=mend;
-                mit++){
-                KeyFrame* keyFrame2=mit->first;
-                if (mit->second.scale==-1.0) {
-                    results1<<keyFrame1->frameId<<' '<<keyFrame2->frameId<<" 2"<<endl;
-                }else if (keyFrame2->nextKeyFramePtr==keyFrame1||keyFrame2->prevKeyFramePtr==keyFrame1) {
-                    results1<<keyFrame1->frameId<<' '<<keyFrame2->frameId<<" 1"<<endl;
-                }else{
-                    results1<<keyFrame1->frameId<<' '<<keyFrame2->frameId<<" 0"<<endl;
-                }
-            }
-        }
-        results1.close();
-        
-        
-        
-        
-        
-        //std::ofstream results2("/Users/ctang/Desktop/debug/points.txt");
+        int npoints=0;
         for (int k=0;k<keyFrames.size();k++) {
             for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
                 keyFrames[k]->mvLocalMapPoints[i].isEstimated=false;
             }
             
-            for(map<KeyFrame*,std::vector<int> >::iterator mit=keyFrames[k]->mConnectedKeyFrameMatches.begin(),
+            for(map<KeyFrame*,vector<int> >::iterator mit=keyFrames[k]->mConnectedKeyFrameMatches.begin(),
                 mend=keyFrames[k]->mConnectedKeyFrameMatches.end();
                 mit!=mend;
                 mit++){
@@ -995,28 +739,26 @@ namespace GSLAM {
                 for (int i=0;i<mit->second.size();i++) {
                     if (mit->second[i]>=0) {
                         keyFrames[k]->mvLocalMapPoints[i].isEstimated=true;
+                        npoints++;
                     }
                 }
             }
-            
-            /*for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
-                if(keyFrames[k]->mvLocalMapPoints[i].isEstimated){
-                    
-                    Eigen::Vector3d point3D=keyFrames[k]->mvLocalMapPoints[i].getPosition();
-                    point3D/=keyFrames[k]->scale;
-                    point3D=keyFrames[k]->pose.rotation.transpose()*point3D+keyFrames[k]->pose.translation;
-                    
-                    uchar* color=keyFrames[k]->mvLocalMapPoints[i].color;
-                    results2<<point3D.transpose()<<' '<<(int)color[0]<<' '<<(int)color[1]<<' '<<(int)color[2]<<endl;
-                }
-            }*/
         }
-        //results2.close();*/
+        
+        ofstream pointcloud(path+std::string("/pointcloud.ply"));
+        pointcloud << "ply"
+        << '\n' << "format ascii 1.0"
+        << '\n' << "element vertex " <<npoints
+        << '\n' << "property float x"
+        << '\n' << "property float y"
+        << '\n' << "property float z"
+        << '\n' << "property uchar red"
+        << '\n' << "property uchar green"
+        << '\n' << "property uchar blue"
+        << '\n' << "end_header" << std::endl;
         
         for (int nFrame=0;nFrame<keyFrames.size();nFrame++) {
             char name[200];
-            sprintf(name,"/Users/chaos/Desktop/debug/points%d.txt",nFrame);
-            std::ofstream results2(name);
             for(int k=0;k<=nFrame;k++){
                 for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
                     if(keyFrames[k]->mvLocalMapPoints[i].isEstimated){
@@ -1026,12 +768,12 @@ namespace GSLAM {
                         point3D=keyFrames[k]->pose.rotation.transpose()*point3D+keyFrames[k]->pose.translation;
                         
                         uchar* color=keyFrames[k]->mvLocalMapPoints[i].color;
-                        results2<<point3D.transpose()<<' '<<(int)color[0]<<' '<<(int)color[1]<<' '<<(int)color[2]<<endl;
+                        pointcloud <<point3D.transpose()<<' '<<(int)color[2]<<' '<<(int)color[1]<<' '<<(int)color[0]<<endl;
                     }
                 }
             }
-            results2.close();
         }
+        pointcloud.close();
     }
     
 
@@ -1077,8 +819,8 @@ namespace GSLAM {
         drawer.keyFrames=keyFrames;
         drawer.mGraphLineWidth=3.0;
         
-        cv::namedWindow("track");
-        cv::moveWindow("track",720,0);
+//        cv::namedWindow("track");
+//        cv::moveWindow("track",720,0);
         //getchar();
         
         drawer.preTwc.resize(1);
@@ -1097,61 +839,57 @@ namespace GSLAM {
             if(drawer.mFrameIndex<keyFrames.back()->mvLocalFrames.back().frameId){
                 drawer.getCurrentOpenGLCameraMatrix(Twc);
                 
-                char name[200];
-                sprintf(name,"%s/image/frame%d.png",path,drawer.mFrameIndex+frameStart+1);
-                printf(name);
-                image=cv::imread(name);
-                double ratio=720.0/image.cols;
-                cv::resize(image,image,cv::Size(720,405));
-               
-                //printf("image %d %d\n",image.cols,image.rows);
-                if ((drawer.mFrameIndex)==keyFrames[drawer.mKeyFrameIndex]->frameId) {
-                    cv::RNG rng(-1);
-                    for(int i=0;i<keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints.size();i++){
-                        if(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount<=0){
-                            continue;
-                        }
-                        //printf("%f %f %f\n",color.val[0],color.val[1],color[2]);
-                        uchar *color=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].color;
-                        
-                        int Size=std::min(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount,20);
-                        Size=std::max(Size,3);
-                        cv::circle(image,
-                                   ratio*keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[0],ratio*Size,
-                                   CV_RGB(245,211,40),2,CV_AA);
-                        
-                    }
-                }else{
-                    for(int i=0;i<keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints.size();i++){
-                        
-                        if(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount<=0){
-                            continue;
-                        }
-                        
-                        
-                        if((drawer.mFrameIndex-keyFrames[drawer.mKeyFrameIndex]->frameId)
-                           >=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked.size()){
-                            continue;
-                        }
-                        int localIndex=drawer.mFrameIndex-keyFrames[drawer.mKeyFrameIndex]->frameId;
-                        
-                        int Size=std::min(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount,20);
-                        Size=std::max(Size,3);
-                        uchar *color=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].color;
-                        cv::circle(image,
-                                   ratio*keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[localIndex],
-                                   ratio*Size,
-                                   CV_RGB(245,211,40),2,CV_AA);
-                        
-                        for (int j=localIndex;j>std::max(localIndex-5,0);j--) {
-                            cv::line(image,
-                                     ratio*keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[j],
-                                     ratio*keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[j-1],
-                                     CV_RGB(245,211,40),2,CV_AA);
-                        }
-                    }
-                }
-                image.copyTo(preImage);
+//                char name[200];
+//                sprintf(name,"%s/1080/frame%05d.pgm",path,drawer.mFrameIndex+frameStart+1);
+//                printf(name);
+//                image=cv::imread(name);
+//                printf("image %d %d\n",image.cols,image.rows);
+//                if ((drawer.mFrameIndex)==keyFrames[drawer.mKeyFrameIndex]->frameId) {
+//                    cv::RNG rng(-1);
+//                    for(int i=0;i<keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints.size();i++){
+//                        if(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount<=0){
+//                            continue;
+//                        }
+//                        //printf("%f %f %f\n",color.val[0],color.val[1],color[2]);
+//                        uchar *color=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].color;
+//
+//                        int Size=min(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount,20);
+//                        Size=max(Size,3);
+//                        cv::circle(image,
+//                                   keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[0],Size,
+//                                   CV_RGB(245,211,40),2,CV_AA);
+//
+//                    }
+//                }else{
+//                    for(int i=0;i<keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints.size();i++){
+//
+//                        if(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount<=0){
+//                            continue;
+//                        }
+//
+//
+//                        if((drawer.mFrameIndex-keyFrames[drawer.mKeyFrameIndex]->frameId)
+//                           >=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked.size()){
+//                            continue;
+//                        }
+//                        int localIndex=drawer.mFrameIndex-keyFrames[drawer.mKeyFrameIndex]->frameId;
+//
+//                        int Size=min(keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].measurementCount,20);
+//                        Size=max(Size,3);
+//                        uchar *color=keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].color;
+//                        cv::circle(image,keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[localIndex],Size,
+//                                   CV_RGB(245,211,40),2,CV_AA);
+//
+//                        for (int j=localIndex;j>max(localIndex-5,0);j--) {
+//                            cv::line(image,
+//                                     keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[j],
+//                                     keyFrames[drawer.mKeyFrameIndex]->mvLocalMapPoints[i].tracked[j-1],
+//                                     CV_RGB(245,211,40),2,CV_AA);
+//                        }
+//                    }
+//                }
+//                cv::resize(image,image,cv::Size(720,405));
+//                image.copyTo(preImage);
                 s_cam.Follow(Twc);
             }else{
                 preImage.copyTo(image);
@@ -1167,29 +905,28 @@ namespace GSLAM {
             drawer.drawKeyFrames();
             drawer.drawPoints();
         
-            char name[200];
-            //sprintf(name,"%s/viewer/viewr%05d",path,drawer.mFrameIndex);
-            //pangolin::SaveWindowOnRender(name);
-            //sprintf(name,"%s/viewer/track%05d.png",path,drawer.mFrameIndex);
-            //cv::imwrite(name,image);
-            cv::imshow("tracking",image);
-            image.release();
+//            char name[200];
+//            sprintf(name,"%s/viewer/viewr%05d",path,drawer.mFrameIndex);
+//            pangolin::SaveWindowOnRender(name);
+//            sprintf(name,"%s/viewer/track%05d.png",path,drawer.mFrameIndex);
+//            cv::imwrite(name,image);
+//            image.release();
+            
             pangolin::FinishFrame();
         }
     }
-    
     bool myfunction (const LocalMapPoint* p1,const LocalMapPoint* p2) { return (p1->invdepth<p2->invdepth); }
     
     void GlobalReconstruction::topview(){
         
         /*for (int k=0;k<keyFrames.size();k++) {
-            std::vector<LocalMapPoint*> localMapPoints;
+            vector<LocalMapPoint*> localMapPoints;
             for (int i=0;i<keyFrames[k]->mvLocalMapPoints.size();i++) {
                 if (keyFrames[k]->mvLocalMapPoints[i].isEstimated) {
                     localMapPoints.push_back(&keyFrames[k]->mvLocalMapPoints[i]);
                 }
             }
-            std::sort(localMapPoints.begin(),localMapPoints.end(),myfunction);
+            sort(localMapPoints.begin(),localMapPoints.end(),myfunction);
             
             for (int i=0;i<(0.8*localMapPoints.size());i++) {
                 localMapPoints[i]->isEstimated=false;
@@ -1316,12 +1053,11 @@ namespace GSLAM {
             drawer.drawKeyFrames();
             drawer.drawPoints();
             
-            char name[200];
-            sprintf(name,"%s/viewer/top%05d",path,drawer.mFrameIndex);
-            pangolin::SaveWindowOnRender(name);
+//            char name[200];
+//            sprintf(name,"%s/viewer/top%05d",path,drawer.mFrameIndex);
+//            pangolin::SaveWindowOnRender(name);
             pangolin::FinishFrame();
             
         }
-        
     }
 }

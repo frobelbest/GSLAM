@@ -9,7 +9,7 @@
 #ifndef Geometry_h
 #define Geometry_h
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include <vector>
 
 inline void setCrossMatrix(Eigen::Matrix3d &crossMat,const Eigen::Vector3d& vector){

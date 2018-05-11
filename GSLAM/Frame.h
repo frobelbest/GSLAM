@@ -24,12 +24,12 @@
 #include "Settings.h"
 #include "Transform.h"
 #include "KeyFrame.h"
-#include "DBoW2/DBoW2/BowVector.h"
-#include "DBoW2/DBoW2/FeatureVector.h"
+#include "./DBoW2/BowVector.h"
+#include "./DBoW2/FeatureVector.h"
 #include "ORBVocabulary.h"
 #include "ORBextractor.h"
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
 
 
 namespace GSLAM

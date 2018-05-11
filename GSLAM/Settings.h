@@ -10,7 +10,7 @@
 #define SETTINGS_H
 #pragma once
 
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include "IMU.hpp"
 
 namespace GSLAM{

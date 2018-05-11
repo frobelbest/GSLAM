@@ -10,6 +10,7 @@
 #define Homography_h
 #pragma once
 #include "opencv2/core/core.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
 
 namespace GSLAM{
     
@@ -299,7 +300,7 @@ namespace GSLAM{
                             cv::Mat& homography,const int maxIters){
         
         CvLevMarq solver(8, 0, cvTermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, maxIters, DBL_EPSILON));
-        CvMat modelPart = cvMat( solver.param->rows, solver.param->cols,homography.type(),homography.ptr());
+        CvMat modelPart = cvMat(solver.param->rows, solver.param->cols,homography.type(),homography.ptr());
         cvCopy( &modelPart, solver.param );
         
         for(;;)

@@ -39,6 +39,7 @@
 		86BA29681D86A793003EBBDE /* svdutil.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 86BA29641D86A793003EBBDE /* svdutil.cpp */; };
 		86E4B7B21D8E42F200058234 /* Geometry.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 86E4B7B11D8E42F200058234 /* Geometry.cpp */; };
 		86F47B4C1D80E2E600F47ACF /* error.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 86F47B451D80E2E600F47ACF /* error.cpp */; };
+		C4191123209344AF000BE72F /* libtheia.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C4191122209344AF000BE72F /* libtheia.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -116,6 +117,8 @@
 		86F47B461D80E2E600F47ACF /* error.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = error.h; sourceTree = "<group>"; };
 		86F47B481D80E2E600F47ACF /* KLT.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KLT.h; sourceTree = "<group>"; };
 		86F47B4B1D80E2E600F47ACF /* LK.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = LK.hpp; sourceTree = "<group>"; };
+		C4191122209344AF000BE72F /* libtheia.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libtheia.a; path = GSLAM/lib/libtheia.a; sourceTree = "<group>"; };
+		C419112420934AD8000BE72F /* DUtils */ = {isa = PBXFileReference; lastKnownFileType = folder; path = DUtils; sourceTree = "<group>"; };
 		C4B124381E51504300670AFD /* Homography.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Homography.hpp; sourceTree = "<group>"; };
 		C4B124391E57C44B00670AFD /* RelativeMotion.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = RelativeMotion.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -128,6 +131,7 @@
 				86A8C9031DE061F4008F117C /* OpenGL.framework in Frameworks */,
 				86A8C9011DE0275C008F117C /* AVFoundation.framework in Frameworks */,
 				863568ED1D7D3EC700F2EDB1 /* CoreMedia.framework in Frameworks */,
+				C4191123209344AF000BE72F /* libtheia.a in Frameworks */,
 				863568EB1D7D3EB900F2EDB1 /* CoreVideo.framework in Frameworks */,
 				863568E71D7D3C9400F2EDB1 /* Accelerate.framework in Frameworks */,
 				86737C1E1D7BEBB4005AAEAC /* CoreFoundation.framework in Frameworks */,
@@ -211,6 +215,7 @@
 		8674FBA71D76587800FB83D1 = {
 			isa = PBXGroup;
 			children = (
+				C4191122209344AF000BE72F /* libtheia.a */,
 				86A8C9021DE061F4008F117C /* OpenGL.framework */,
 				86A8C9001DE0275C008F117C /* AVFoundation.framework */,
 				863568EC1D7D3EC700F2EDB1 /* CoreMedia.framework */,
@@ -241,6 +246,7 @@
 				863568F01D7D3F2700F2EDB1 /* Geometry */,
 				863568E91D7D3DB400F2EDB1 /* Frame */,
 				863568E81D7D3D4900F2EDB1 /* ORB */,
+				C419112420934AD8000BE72F /* DUtils */,
 				86737C261D7C043D005AAEAC /* DBoW2 */,
 				863568F31D7D425F00F2EDB1 /* Settings.h */,
 				86737C1F1D7BF625005AAEAC /* System.h */,
@@ -461,45 +467,18 @@
 				"HEADER_SEARCH_PATHS[arch=*]" = (
 					/usr/local/include,
 					/usr/local/include/eigen3,
-					/Applications/MATLAB_R2015b.app/extern/include,
 				);
-				LD_RUNPATH_SEARCH_PATHS = "/Applications/MATLAB_R2015b.app/bin /Applications/MATLAB_R2015b.app/bin/maci64";
+				LD_RUNPATH_SEARCH_PATHS = "";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/GSLAM/lib",
 					/usr/local/lib,
 					"$(PROJECT_DIR)",
 					"$(PROJECT_DIR)/GSLAM",
-					/Applications/MATLAB_R2015b.app/bin/maci64,
-					/Users/chaos/Desktop/Project/GSLAM_GIT/GSLAM,
 				);
 				OTHER_LDFLAGS = "";
-				"OTHER_LDFLAGS[arch=*]" = (
-					"-lopencv_core",
-					"-lglog",
-					"-ltbb",
-					"-lceres",
-					"-lopencv_imgproc",
-					"-lopencv_calib3d",
-					"-lDBoW2",
-					"-lcxsparse",
-					"-lcholmod",
-					"-lcsparse",
-					"-lopencv_imgcodecs",
-					"-lopencv_features2d",
-					"-lCoinUtils",
-					"-lClp",
-					"-lm",
-					"-lmx",
-					"-lmat",
-					"-leng",
-					"-lg2o_core",
-					"-lg2o_types_sim3",
-					"-lg2o_csparse_extension",
-					"-lg2o_stuff",
-					"-lg2o_types_slam3d",
-				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx10.13;
 			};
 			name = Debug;
 		};
@@ -518,18 +497,14 @@
 				"HEADER_SEARCH_PATHS[arch=*]" = (
 					/usr/local/include,
 					/usr/local/include/eigen3,
-					/Applications/MATLAB_R2015b.app/extern/include,
-					/Users/ctang/Desktop/SLAM/GSLAM/GSLAM,
 				);
-				LD_RUNPATH_SEARCH_PATHS = "/Applications/MATLAB_R2015b.app/bin /Applications/MATLAB_R2015b.app/bin/maci64";
+				LD_RUNPATH_SEARCH_PATHS = "";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/GSLAM/lib",
 					/usr/local/lib,
 					"$(PROJECT_DIR)",
 					"$(PROJECT_DIR)/GSLAM",
-					/Applications/MATLAB_R2015b.app/bin/maci64,
-					/Users/chaos/Desktop/Project/GSLAM_GIT/GSLAM,
 				);
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = "";
@@ -541,30 +516,18 @@
 					"-lopencv_imgproc",
 					"-ltbb",
 					"-lopencv_features2d",
-					"-lDBoW2",
-					"-lcholmod",
-					"-lcsparse",
-					"-lcxsparse",
 					"-lClp",
 					"-lCoinUtils",
-					"-lmat",
-					"-lm",
-					"-leng",
-					"-lmx",
-					"-lg2o_core",
-					"-lg2o_types_sim3",
-					"-lg2o_csparse_extension",
-					"-lg2o_stuff",
 					"-lopencv_imgcodecs",
-					"-lg2o_types_slam3d",
 					"-lpangolin",
-					"-lopencv_highgui.3.1.0",
+					"-lopencv_highgui",
 					"-lopencv_videoio",
-					"-lopengv",
-					"-lrandom_generators",
 					"-lopencv_video",
+					"-lcholmod",
+					"-lDBoW2",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx10.13;
 			};
 			name = Release;
 		};

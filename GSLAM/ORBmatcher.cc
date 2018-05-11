@@ -22,7 +22,7 @@
 #include <limits.h>
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
-#include "DBoW2/DBoW2/FeatureVector.h"
+#include "./DBoW2/FeatureVector.h"
 #include <stdint.h>
 #include <utility>
 #include "Geometry.h"

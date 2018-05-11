@@ -7,7 +7,7 @@
 //
 
 #include "opencv2/core/core.hpp"
-#include "eigen3/Eigen/Dense"
+#include "Eigen/Dense"
 #include <vector>
 
 #pragma once

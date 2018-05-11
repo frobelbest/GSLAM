@@ -9,7 +9,3 @@
 #include "opencv2/imgproc/imgproc.hpp"
 
 void computePyramid(KLT_TrackingContext tc,const cv::Mat &img,std::vector<cv::Mat> &pyramid);
-void computePyramid3(KLT_TrackingContext tc,const cv::Mat &img,std::vector<cv::Mat> &pyramid);
-
-void computePyramid2(KLT_TrackingContext tc,cv::Mat &img,std::vector<cv::Mat> &pyramid);
-
